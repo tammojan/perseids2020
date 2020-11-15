@@ -9,8 +9,8 @@ import astropy.units as u
 
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid.inset_locator import (inset_axes, InsetPosition,
-                                                  mark_inset)
+from mpl_toolkits.axes_grid1.inset_locator import (inset_axes, InsetPosition,
+                                                   mark_inset)
 
 import astropy
 from astropy.io import fits
