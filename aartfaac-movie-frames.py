@@ -33,24 +33,26 @@ import warnings
 
 nsteps = 21  # points along cams meteor trajectory to plot
 
-camsdata_full = pd.read_fwf("../SummaryMeteorLog CAMS Benelux 120820 .txt",
+camsdata = pd.read_fwf("../SummaryMeteorLog CAMS Benelux 120820 .txt",
                             index_col=0,
                             header=[0, 1],
                             skip_blank_lines=True,
                             skiprows=[2],
                             skipinitialspace=True)
 
-camsdata_full.columns = [
+camsdata.columns = [
     ' '.join(col) if isinstance(col, tuple) else col
-    for col in camsdata_full.columns
+    for col in camsdata.columns
 ]
 
-camsdata_full["astropytime_beg"] = Time(
-    list(camsdata_full["Observed Date"] + " " + camsdata_full["Ref Time UT"])
-) + np.array(camsdata_full["Tbeg sec"]) * u.s
-camsdata_full["astropytime_end"] = Time(
-    list(camsdata_full["Observed Date"] + " " + camsdata_full["Ref Time UT"])
-) + np.array(camsdata_full["Tend sec"]) * u.s
+camsdata["astropytime_beg"] = Time(
+    list(camsdata["Observed Date"] + " " + camsdata["Ref Time UT"])
+) + np.array(camsdata["Tbeg sec"]) * u.s
+camsdata["astropytime_end"] = Time(
+    list(camsdata["Observed Date"] + " " + camsdata["Ref Time UT"])
+) + np.array(camsdata["Tend sec"]) * u.s
+
+camsdata = camsdata.join(pd.read_csv("aartfaac-cams-matches.csv", index_col=0))
 
 loc_lofar = EarthLocation(lat=52.9153 * u.deg,
                           lon=6.8698 * u.deg,
@@ -75,19 +77,6 @@ def llh_to_radec(lon, lat, height, obstime, location):
 
     return altaz_far.transform_to(FK5)
 
-camsdata_full["AARTFAAC"] = None
-matchdata = urllib.request.urlopen(
-    "https://github.com/tammojan/perseids2020/raw/master/aartfaac-cams-matches.txt"
-)
-for line in matchdata:
-    line = line.decode('utf-8')
-    if line[0] == '#':
-        continue
-    val, camsids = line.split(":")
-    val = int(val)
-    camsids = list(map(int, camsids.split(",")))
-    camsdata_full["AARTFAAC"].loc[camsids] = val
-
 def makerect(x, y):
     xmin = max(0, np.min(x) - 100)
     ymin = max(0, np.min(y) - 100)
@@ -100,8 +89,6 @@ def makerect(x, y):
                                          edgecolor='red',
                                          facecolor='none')
 
-
-camsdata = camsdata_full
 
 fitsnames = sorted(glob("/data1/dijkema/A12_meteor/*.fits"))
 
@@ -183,7 +170,7 @@ for frame_nr, fitsname in tqdm(enumerate(fitsnames[start_index: end_index]), tot
             ax.text(xmin,
                     ymax - 31,
                     f"#{rownr}: {row['AARTFAAC']}",
-                    color=color,
+                    color='white',
                     alpha=alpha)
             ax.set_xlim(0, data.shape[1])
             ax.set_ylim(0, data.shape[0])
