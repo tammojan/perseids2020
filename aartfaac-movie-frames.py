@@ -25,6 +25,8 @@ from astropy.time import Time
 from astropy.wcs.utils import skycoord_to_pixel
 from astropy.coordinates import EarthLocation, AltAz, GCRS, ITRS, Angle, SkyCoord, FK5
 
+import pyproj
+
 from tqdm import tqdm
 
 import warnings
@@ -101,6 +103,8 @@ if len(sys.argv) > 1:
     start_index = int(sys.argv[1])
     end_index = int(sys.argv[2])
 
+geod = pyproj.Geod(sphere=True, a=1)
+
 for frame_nr, fitsname in tqdm(enumerate(fitsnames[start_index: end_index]), total=len(fitsnames[start_index: end_index])):
 
     # Sky _16B if _15B is present (etc), to get only one frame per timeslot
@@ -148,19 +152,25 @@ for frame_nr, fitsname in tqdm(enumerate(fitsnames[start_index: end_index]), tot
                             row["astropytime_end"].mjd, nsteps),
                 format="mjd",
             )
+
             radec = llh_to_radec(lon, lat, height, obstime, location=loc_lofar)
             (x, y) = skycoord_to_pixel(radec, wcs, 0)
             xmin, ymax, rect = makerect(x, y)
+
+            radiant = SkyCoord(ra=camsdata.loc[rownr]["RAinf deg"]*u.deg, dec=camsdata.loc[rownr]["DECinf deg"]*u.deg)
+            line_to_radiant = SkyCoord(np.array(geod.npts(radiant.ra.deg, radiant.dec.deg, radec.ra.deg[0], radec.dec.deg[0], 101)) * u.deg)
+
             if row["AARTFAAC"] is not None and row["AARTFAAC"] > 0:
                 color = 'white'
             else:
-                color = 'red'
-            alpha = np.interp(
-                (fitstime - row["astropytime_beg"]).to(u.s).value, (0, 60),
-                (1, 0))
+                continue # Do not plot CAMS trajectories without AARTFAAC match
 
-            plt.plot(*(LineString(np.array([x, y]).T).buffer(20).exterior.xy),
-                     color="red", linewidth=0.5, alpha=alpha)
+            alpha = np.interp(
+                    (fitstime - row["astropytime_beg"]).to(u.s).value, (0, row["AARTFAAC_duration"] + 6),
+                    (1, 0))
+
+            ax.plot(*(LineString(np.array([x, y]).T).buffer(20).exterior.xy),
+                    color="red", linewidth=0.5, alpha=alpha)
 
             rect.set_alpha(alpha)
             rect.set_edgecolor(color)
@@ -172,6 +182,14 @@ for frame_nr, fitsname in tqdm(enumerate(fitsnames[start_index: end_index]), tot
                     alpha=alpha)
             ax.set_xlim(0, data.shape[1])
             ax.set_ylim(0, data.shape[0])
+            try:
+                radiant_xy = skycoord_to_pixel(radiant, wcs, 0)
+                ax.plot(*radiant_xy, 'ro', alpha=alpha, markersize=9)
+                (rx, ry) = skycoord_to_pixel(line_to_radiant, wcs, 0)
+                ax.plot(rx, ry, color='red', linewidth=.6, alpha=alpha)
+            except:
+                print("Problem with radiant of #" + str(rownr) + ", " + fitsname)
+                raise
         except:
             print("Problem with #" + str(rownr) + ", " + fitsname)
             raise
